@@ -1,0 +1,92 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+![Image Description](https://github.com/lneis1/WS_2023_24/blob/main/KGP_without_labels.png)
+
+class RRT:
+    def __init__(self, start, goal, thresh, max_iter=1000, step_size=10, goal_radius=10):
+        self.start = start
+        self.goal = goal
+        self.thresh = thresh
+        self.max_iter = max_iter
+        self.step_size = step_size
+        self.goal_radius = goal_radius
+        self.nodes = [start]
+        self.edges = []
+
+    def generate_random_point(self):
+        while True:
+            x = np.random.randint(0, self.thresh.shape[1])
+            y = np.random.randint(0, self.thresh.shape[0])
+            if self.thresh[y, x] == 255:
+                return np.array([x, y])
+
+    def nearest_node(self, point):
+        distances = [np.linalg.norm(node - point) for node in self.nodes]
+        return self.nodes[np.argmin(distances)]
+
+    def steer(self, from_node, to_node):
+        direction = to_node - from_node
+        distance = np.linalg.norm(direction)
+        if distance <= self.step_size:
+            return to_node
+        else:
+            return from_node + direction / distance * self.step_size
+
+    def is_collision_free(self, from_node, to_node):
+        line_points = np.linspace(from_node, to_node, num=50).astype(int)
+        for point in line_points:
+            if self.thresh[point[1], point[0]] == 0:
+                return False
+        return True
+
+    def extend_tree(self):
+        for _ in range(self.max_iter):
+            random_point = self.generate_random_point()
+            nearest_node = self.nearest_node(random_point)
+            new_node = self.steer(nearest_node, random_point)
+            if self.is_collision_free(nearest_node, new_node):
+                self.nodes.append(new_node)
+                self.edges.append((nearest_node, new_node))
+                if np.linalg.norm(new_node - self.goal) <= self.goal_radius:
+                    self.edges.append((new_node, self.goal))
+                    return True
+        return False
+
+    def plot_tree(self):
+        plt.figure()
+        plt.imshow(self.thresh, cmap='gray', origin='lower')
+        plt.plot(self.start[0], self.start[1], 'go', markersize=10)
+        plt.plot(self.goal[0], self.goal[1], 'ro', markersize=10)
+
+        for i in range(len(self.edges)):
+            for j in range(i + 1):
+                edge = self.edges[j]
+                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'b-', linewidth=2)
+            plt.pause(0.01)
+
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.title('RRT Path Planning')
+        plt.show()
+
+def main():
+    img = cv2.imread('D:/Samarth/Clg Extra Stuff/Sem02/OpenCV/KGP_without_labels.png')
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    ret, thresh = cv2.threshold(gray, 245, 255, cv2.THRESH_BINARY)
+    start = np.array([215, 263])
+    goal = np.array([626, 286])
+    rrt = RRT(start, goal, thresh)
+    goal_reached = False
+    while not goal_reached:
+        goal_reached = rrt.extend_tree()
+    rrt.plot_tree()
+    plt.figure()
+    plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.title('Original Image')
+    plt.show()
+
+if __name__ == "__main__":
+    main()
